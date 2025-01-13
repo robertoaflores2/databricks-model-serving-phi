@@ -1,3 +1,4 @@
+# Databricks notebook source
 from typing import Any, Dict, List, Optional
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -7,6 +8,8 @@ import torch
 from PIL import Image
 import mlflow
 from mlflow.models.signature import infer_signature
+
+# COMMAND ----------
 
 class CustomLLMChat(BaseChatModel):
     model_name: str = "microsoft/Phi-3.5-vision-instruct"
@@ -41,9 +44,14 @@ class CustomLLMChat(BaseChatModel):
         
         return ChatResult(generations=[AIMessage(content=response)])
 
+    def _llm_type(self) -> str:
+        return "custom"
+
+# COMMAND ----------
+
 # Define the input and output schema
 input_example = {
-    "image_path": "path_to_your_image.jpg",
+    "image_path": "path_to_your_image.jpg",  # This can be a path to an actual image file for testing
     "prompt": "Describe this image."
 }
 output_example = "A beautiful sunset over the mountains."
@@ -51,16 +59,26 @@ output_example = "A beautiful sunset over the mountains."
 # Infer the model signature
 signature = infer_signature(input_example, output_example)
 
+# COMMAND ----------
+
 # Log the model
 with mlflow.start_run():
-    mlflow.pyfunc.log_model(
+    model_info = mlflow.pyfunc.log_model(
         artifact_path="vision_model",
         python_model=CustomLLMChat(),
         signature=signature,
         input_example=input_example
     )
 
-# Register the model in the Unity Catalog
-model_uri = "runs:/<run_id>/vision_model"
-model_name = "Phi35VisionInstructModel"
-mlflow.register_model(model_uri, model_name)
+# COMMAND ----------
+
+    # Register the model in the MLflow Model Registry
+    model_uri = f"runs:/{mlflow.active_run().info.run_id}/{model_info.artifact_path}"
+    model_name = "PhiVisionModel"
+    catalog = "hive_metastore"
+    schema = "labuser8941794_1736762028"
+
+    mlflow.register_model(
+        model_uri=model_uri,
+        name=f"{catalog}.{schema}.{model_name}"
+    )
